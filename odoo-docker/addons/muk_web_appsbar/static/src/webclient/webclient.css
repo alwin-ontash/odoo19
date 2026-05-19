@@ -1,0 +1,25 @@
+.o_web_client {
+  display: grid !important;
+  grid-template-areas: "banner banner" "navbar navbar" "sidebar content" "components components";
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-columns: auto 1fr;
+}
+.o_web_client > div:has(#oe_neutralize_banner) {
+  grid-area: banner;
+}
+.o_web_client > .o_navbar {
+  grid-area: navbar;
+}
+.o_web_client > .mk_apps_sidebar_panel {
+  grid-area: sidebar;
+}
+.o_web_client > .o_action_manager {
+  grid-area: content;
+}
+.o_web_client > .o-main-components-container {
+  grid-area: components;
+}
+.o_web_client > iframe {
+  grid-column: 1/-1;
+  width: 100%;
+}/*# sourceMappingURL=webclient.css.map */

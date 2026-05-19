@@ -1,0 +1,23 @@
+.o_field_widget.o_field_tag_picker {
+  flex-flow: row wrap;
+  margin: var(--Tags-margin, 0);
+}
+.o_field_widget.o_field_tag_picker .o_tags_input {
+  padding: 1px 0;
+}
+.o_field_widget.o_field_tag_picker .o_field_many2many_selection {
+  flex: 1 0 50px;
+}
+.o_field_widget.o_field_tag_picker .o_field_many2many_selection .o_input {
+  height: 100%;
+  border: none;
+  --o-input-background-color: transparent;
+}
+.o_field_widget.o_field_tag_picker .badge {
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.o_form_view .o_group .o_field_tag_picker, .o_form_view .o_inner_group .o_field_tag_picker {
+  width: 100%;
+}/*# sourceMappingURL=tag_picker.css.map */
