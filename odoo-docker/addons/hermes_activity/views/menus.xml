@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="hermes_activity_menu_root"
+        name="Hermes"
+        sequence="90"/>
+
+    <menuitem
+        id="hermes_activity_menu_log"
+        name="Activity Log"
+        parent="hermes_activity_menu_root"
+        action="hermes_activity_action"
+        sequence="10"/>
+
+</odoo>
