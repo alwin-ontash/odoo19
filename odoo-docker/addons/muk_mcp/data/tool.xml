@@ -116,4 +116,259 @@ else:
 }</field>
     </record>
 
+    <record id="tool_update_product_price" model="muk_mcp.tool">
+        <field name="name">update_product_price</field>
+        <field name="description">Update the sales price and/or cost price of a product. Use this to change what a product sells for (lst_price) or its internal cost (standard_price). Requires the product template ID (not variant ID). Returns the updated values as confirmation.</field>
+        <field name="category">write</field>
+        <field name="sequence">30</field>
+        <field name="code">
+product_id = arguments.get('id')
+if not product_id:
+    result = {'error': 'Product ID is required'}
+elif not env['product.template'].search_count([('id', '=', product_id)]):
+    result = {'error': 'Product template %s not found' % product_id}
+else:
+    sales_price = arguments.get('sales_price')
+    cost_price = arguments.get('cost_price')
+    if sales_price is None and cost_price is None:
+        result = {'error': 'Provide at least one of: sales_price, cost_price'}
+    elif sales_price is not None and float(sales_price) &lt; 0:
+        result = {'error': 'sales_price must be >= 0'}
+    elif cost_price is not None and float(cost_price) &lt; 0:
+        result = {'error': 'cost_price must be >= 0'}
+    else:
+        product = env['product.template'].browse(product_id)
+        vals = {}
+        if sales_price is not None:
+            vals['list_price'] = float(sales_price)
+        if cost_price is not None:
+            product.sudo().write({'standard_price': float(cost_price)})
+        if vals:
+            product.write(vals)
+        product.invalidate_recordset()
+        result = {
+            'id': product.id,
+            'name': product.name,
+            'sales_price': product.list_price,
+            'cost_price': product.sudo().standard_price,
+            'updated': list((['sales_price'] if sales_price is not None else []) + (['cost_price'] if cost_price is not None else [])),
+        }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "Product template ID."
+        },
+        "sales_price": {
+            "type": "number",
+            "description": "New sales price (lst_price). Must be >= 0."
+        },
+        "cost_price": {
+            "type": "number",
+            "description": "New cost/purchase price (standard_price). Must be >= 0."
+        }
+    },
+    "required": ["id"]
+}</field>
+    </record>
+
+    <record id="tool_rename_product" model="muk_mcp.tool">
+        <field name="name">rename_product</field>
+        <field name="description">Rename a product and optionally update its internal reference code and sales description. Requires the product template ID. At least one of name, internal_reference, or description must be provided. Returns the updated product fields as confirmation.</field>
+        <field name="category">write</field>
+        <field name="sequence">31</field>
+        <field name="code">
+product_id = arguments.get('id')
+if not product_id:
+    result = {'error': 'Product ID is required'}
+elif not env['product.template'].search_count([('id', '=', product_id)]):
+    result = {'error': 'Product template %s not found' % product_id}
+else:
+    name = arguments.get('name')
+    internal_reference = arguments.get('internal_reference')
+    description = arguments.get('description')
+    if not name and internal_reference is None and description is None:
+        result = {'error': 'Provide at least one of: name, internal_reference, description'}
+    elif name is not None and not str(name).strip():
+        result = {'error': 'name cannot be empty'}
+    else:
+        product = env['product.template'].browse(product_id)
+        vals = {}
+        if name:
+            vals['name'] = str(name).strip()
+        if internal_reference is not None:
+            vals['default_code'] = str(internal_reference).strip() or False
+        if description is not None:
+            vals['description_sale'] = str(description).strip() or False
+        product.write(vals)
+        product.invalidate_recordset()
+        result = {
+            'id': product.id,
+            'name': product.name,
+            'internal_reference': product.default_code or '',
+            'description': product.description_sale or '',
+            'updated': list(vals.keys()),
+        }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "Product template ID."
+        },
+        "name": {
+            "type": "string",
+            "description": "New product name."
+        },
+        "internal_reference": {
+            "type": "string",
+            "description": "New internal reference / SKU code. Pass empty string to clear."
+        },
+        "description": {
+            "type": "string",
+            "description": "New sales description shown on quotes. Pass empty string to clear."
+        }
+    },
+    "required": ["id"]
+}</field>
+    </record>
+
+    <record id="tool_update_customer" model="muk_mcp.tool">
+        <field name="name">update_customer</field>
+        <field name="description">Update a customer or contact's details in Odoo. Can update name, email, phone, mobile, street address, city, zip/postal code, and country. Requires the partner ID. At least one field to update must be provided. Country is resolved by name (e.g. 'United States'). Returns updated fields as confirmation.</field>
+        <field name="category">write</field>
+        <field name="sequence">32</field>
+        <field name="code">
+partner_id = arguments.get('id')
+if not partner_id:
+    result = {'error': 'Customer/partner ID is required'}
+elif not env['res.partner'].search_count([('id', '=', partner_id)]):
+    result = {'error': 'Partner %s not found' % partner_id}
+else:
+    allowed = ['name', 'email', 'phone', 'mobile', 'street', 'street2', 'city', 'zip']
+    vals = {}
+    for field in allowed:
+        if arguments.get(field) is not None:
+            vals[field] = str(arguments[field]).strip() or False
+    country_name = arguments.get('country')
+    if country_name:
+        country = env['res.country'].search([('name', 'ilike', str(country_name).strip())], limit=1)
+        if not country:
+            result = {'error': 'Country %r not found' % country_name}
+            country_name = None
+        else:
+            vals['country_id'] = country.id
+    if not vals and country_name is None:
+        result = {'error': 'Provide at least one field to update: name, email, phone, mobile, street, street2, city, zip, country'}
+    elif vals or country_name:
+        partner = env['res.partner'].browse(partner_id)
+        partner.write(vals)
+        partner.invalidate_recordset()
+        result = {
+            'id': partner.id,
+            'name': partner.name,
+            'email': partner.email or '',
+            'phone': partner.phone or '',
+            'mobile': partner.mobile or '',
+            'street': partner.street or '',
+            'city': partner.city or '',
+            'zip': partner.zip or '',
+            'country': partner.country_id.name if partner.country_id else '',
+            'updated': list(vals.keys()),
+        }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "Partner/customer ID."
+        },
+        "name": {"type": "string", "description": "Full name or company name."},
+        "email": {"type": "string", "description": "Email address."},
+        "phone": {"type": "string", "description": "Phone number."},
+        "mobile": {"type": "string", "description": "Mobile number."},
+        "street": {"type": "string", "description": "Street address line 1."},
+        "street2": {"type": "string", "description": "Street address line 2."},
+        "city": {"type": "string", "description": "City."},
+        "zip": {"type": "string", "description": "Postal / ZIP code."},
+        "country": {"type": "string", "description": "Country name (e.g. 'United States')."}
+    },
+    "required": ["id"]
+}</field>
+    </record>
+
+    <record id="tool_update_stock_quantity" model="muk_mcp.tool">
+        <field name="name">update_stock_quantity</field>
+        <field name="description">Set the on-hand stock quantity for a product at a specific location using an inventory adjustment. Requires a product.product ID (variant, not template). Location defaults to the main stock location (WH/Stock) if not provided. Returns the new quantity after applying the adjustment.</field>
+        <field name="category">write</field>
+        <field name="sequence">33</field>
+        <field name="code">
+product_id = arguments.get('product_id')
+quantity = arguments.get('quantity')
+if not product_id:
+    result = {'error': 'product_id is required'}
+elif quantity is None:
+    result = {'error': 'quantity is required'}
+elif float(quantity) &lt; 0:
+    result = {'error': 'quantity must be >= 0'}
+elif not env['product.product'].search_count([('id', '=', product_id)]):
+    result = {'error': 'Product (variant) %s not found' % product_id}
+else:
+    location_id = arguments.get('location_id')
+    if location_id:
+        location = env['stock.location'].browse(int(location_id))
+        if not location.exists():
+            result = {'error': 'Location %s not found' % location_id}
+            location = None
+    else:
+        location = env['stock.location'].search(
+            [('complete_name', 'ilike', 'WH/Stock'), ('usage', '=', 'internal')], limit=1
+        )
+        if not location:
+            location = env['stock.location'].search([('usage', '=', 'internal')], limit=1)
+    if location:
+        product = env['product.product'].browse(product_id)
+        quant = env['stock.quant'].sudo().search(
+            [('product_id', '=', product_id), ('location_id', '=', location.id)], limit=1
+        )
+        if not quant:
+            quant = env['stock.quant'].sudo().create({
+                'product_id': product_id,
+                'location_id': location.id,
+                'quantity': 0,
+            })
+        quant.sudo().write({'inventory_quantity': float(quantity)})
+        quant.sudo().action_apply_inventory()
+        quant.invalidate_recordset()
+        result = {
+            'product_id': product_id,
+            'product_name': product.display_name,
+            'location': location.complete_name,
+            'new_quantity': quant.quantity,
+        }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "product_id": {
+            "type": "integer",
+            "description": "Product variant ID (product.product, not product.template)."
+        },
+        "quantity": {
+            "type": "number",
+            "description": "New on-hand quantity to set. Must be >= 0."
+        },
+        "location_id": {
+            "type": "integer",
+            "description": "Stock location ID. Defaults to WH/Stock if omitted."
+        }
+    },
+    "required": ["product_id", "quantity"]
+}</field>
+    </record>
+
 </odoo>

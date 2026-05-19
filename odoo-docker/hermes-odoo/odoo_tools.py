@@ -205,3 +205,159 @@ def show_product_stock(product_name: str) -> str:
             f"• *{product}* | {location} | On hand: {on_hand:.0f} | Available: {available:.0f}"
         )
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Write — Products
+# ---------------------------------------------------------------------------
+
+
+def update_product_price(product_id: int, sales_price: float = None, cost_price: float = None) -> str:
+    """Update the sales price and/or cost price of a product template."""
+    if sales_price is None and cost_price is None:
+        return "Provide at least one of: sales_price or cost_price."
+
+    args = {"id": product_id}
+    if sales_price is not None:
+        args["sales_price"] = sales_price
+    if cost_price is not None:
+        args["cost_price"] = cost_price
+
+    try:
+        result = call_mcp_tool("update_product_price", args)
+    except RuntimeError as exc:
+        return f"Could not update product price: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    name = result.get("name", f"ID {product_id}")
+    lines = [f"*Product updated: {name}*\n"]
+    if "sales_price" in result:
+        lines.append(f"• Sales price: ${result['sales_price']:,.2f}")
+    if "cost_price" in result:
+        lines.append(f"• Cost price: ${result['cost_price']:,.2f}")
+    return "\n".join(lines)
+
+
+def rename_product(product_id: int, name: str = None, internal_reference: str = None, description: str = None) -> str:
+    """Rename a product and/or update its internal reference and sales description."""
+    if not name and internal_reference is None and description is None:
+        return "Provide at least one of: name, internal_reference, description."
+
+    args = {"id": product_id}
+    if name:
+        args["name"] = name
+    if internal_reference is not None:
+        args["internal_reference"] = internal_reference
+    if description is not None:
+        args["description"] = description
+
+    try:
+        result = call_mcp_tool("rename_product", args)
+    except RuntimeError as exc:
+        return f"Could not rename product: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    updated = result.get("updated", [])
+    lines = [f"*Product updated (ID {product_id}):*\n"]
+    lines.append(f"• Name: {result.get('name', '')}")
+    if "default_code" in updated or internal_reference is not None:
+        lines.append(f"• Internal ref: {result.get('internal_reference') or '(cleared)'}")
+    if "description_sale" in updated or description is not None:
+        lines.append(f"• Description: {result.get('description') or '(cleared)'}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Write — Customers
+# ---------------------------------------------------------------------------
+
+
+def update_customer(
+    customer_id: int,
+    name: str = None,
+    email: str = None,
+    phone: str = None,
+    mobile: str = None,
+    street: str = None,
+    street2: str = None,
+    city: str = None,
+    zip_code: str = None,
+    country: str = None,
+) -> str:
+    """Update a customer or contact's details in Odoo."""
+    args = {"id": customer_id}
+    if name is not None:
+        args["name"] = name
+    if email is not None:
+        args["email"] = email
+    if phone is not None:
+        args["phone"] = phone
+    if mobile is not None:
+        args["mobile"] = mobile
+    if street is not None:
+        args["street"] = street
+    if street2 is not None:
+        args["street2"] = street2
+    if city is not None:
+        args["city"] = city
+    if zip_code is not None:
+        args["zip"] = zip_code
+    if country is not None:
+        args["country"] = country
+
+    if len(args) == 1:
+        return "Provide at least one field to update."
+
+    try:
+        result = call_mcp_tool("update_customer", args)
+    except RuntimeError as exc:
+        return f"Could not update customer: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    lines = [f"*Customer updated: {result.get('name', f'ID {customer_id}')}*\n"]
+    if result.get("email"):
+        lines.append(f"• Email: {result['email']}")
+    if result.get("phone"):
+        lines.append(f"• Phone: {result['phone']}")
+    if result.get("mobile"):
+        lines.append(f"• Mobile: {result['mobile']}")
+    address_parts = filter(None, [result.get("street"), result.get("city"), result.get("zip"), result.get("country")])
+    address = ", ".join(address_parts)
+    if address:
+        lines.append(f"• Address: {address}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Write — Stock
+# ---------------------------------------------------------------------------
+
+
+def update_stock_quantity(product_id: int, quantity: float, location_id: int = None) -> str:
+    """Set the on-hand stock quantity for a product variant via inventory adjustment."""
+    args = {"product_id": product_id, "quantity": quantity}
+    if location_id is not None:
+        args["location_id"] = location_id
+
+    try:
+        result = call_mcp_tool("update_stock_quantity", args)
+    except RuntimeError as exc:
+        return f"Could not update stock: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    product_name = result.get("product_name", f"ID {product_id}")
+    location = result.get("location", "")
+    new_qty = result.get("new_quantity", quantity)
+    return (
+        f"*Stock updated: {product_name}*\n"
+        f"• Location: {location}\n"
+        f"• New on-hand quantity: {new_qty:.0f}"
+    )

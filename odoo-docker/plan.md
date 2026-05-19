@@ -1,5 +1,9 @@
 # Hermes Agent ↔ Odoo 19 Integration Plan
 
+**Status: COMPLETE** — Last updated May 14, 2026
+
+All read and write operations are fully working via Telegram ↔ Hermes ↔ MCP ↔ Odoo 19.
+
 ---
 
 ## 1. Project Overview

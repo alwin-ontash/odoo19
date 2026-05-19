@@ -157,8 +157,9 @@ def call_mcp_tool(tool_name: str, arguments: dict) -> list:
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
-            # search_read wraps results in {"records": [...]}
-            return parsed.get("records", list(parsed.values())[0] if parsed else [])
+            if "records" in parsed:
+                return parsed["records"]
+            return parsed  # write tool result — return dict as-is
         return parsed if isinstance(parsed, list) else []
     except (json.JSONDecodeError, TypeError):
         return []
