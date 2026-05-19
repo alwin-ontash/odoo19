@@ -150,10 +150,13 @@ def call_mcp_tool(tool_name: str, arguments: dict) -> list:
         raise RuntimeError(f"MCP error: {safe_message}")
 
     content = body.get("result", {}).get("content", [])
+    is_error = body.get("result", {}).get("isError", False)
     if not content:
         return []
 
     text = content[0].get("text", "[]")
+    if is_error:
+        raise RuntimeError(text)
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):

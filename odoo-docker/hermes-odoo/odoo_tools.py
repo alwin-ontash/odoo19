@@ -361,3 +361,135 @@ def update_stock_quantity(product_id: int, quantity: float, location_id: int = N
         f"• Location: {location}\n"
         f"• New on-hand quantity: {new_qty:.0f}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Create — Products & Customers
+# ---------------------------------------------------------------------------
+
+
+def create_product(
+    name: str,
+    sales_price: float = None,
+    cost_price: float = None,
+    internal_reference: str = None,
+    description: str = None,
+) -> str:
+    """Create a new product in Odoo."""
+    if not name or not name.strip():
+        return "Product name is required."
+
+    args = {"name": name.strip()}
+    if sales_price is not None:
+        args["sales_price"] = sales_price
+    if cost_price is not None:
+        args["cost_price"] = cost_price
+    if internal_reference:
+        args["internal_reference"] = internal_reference
+    if description:
+        args["description"] = description
+
+    try:
+        result = call_mcp_tool("create_product", args)
+    except RuntimeError as exc:
+        return f"Could not create product: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    pid = result.get("id", "?")
+    pname = result.get("name", name)
+    lines = [f"*Product created: {pname}* (ID: {pid})\n"]
+    if "sales_price" in result:
+        lines.append(f"• Sales price: ${result['sales_price']:,.2f}")
+    if "cost_price" in result:
+        lines.append(f"• Cost price: ${result['cost_price']:,.2f}")
+    if result.get("internal_reference"):
+        lines.append(f"• Internal ref: {result['internal_reference']}")
+    return "\n".join(lines)
+
+
+def create_customer(
+    name: str,
+    email: str = None,
+    phone: str = None,
+    street: str = None,
+    city: str = None,
+    zip_code: str = None,
+    country: str = None,
+) -> str:
+    """Create a new customer in Odoo."""
+    if not name or not name.strip():
+        return "Customer name is required."
+
+    args = {"name": name.strip()}
+    if email:
+        args["email"] = email
+    if phone:
+        args["phone"] = phone
+    if street:
+        args["street"] = street
+    if city:
+        args["city"] = city
+    if zip_code:
+        args["zip"] = zip_code
+    if country:
+        args["country"] = country
+
+    try:
+        result = call_mcp_tool("create_customer", args)
+    except RuntimeError as exc:
+        return f"Could not create customer: {exc}"
+
+    if isinstance(result, dict) and result.get("error"):
+        return f"Error: {result['error']}"
+
+    cid = result.get("id", "?")
+    cname = result.get("name", name)
+    lines = [f"*Customer created: {cname}* (ID: {cid})\n"]
+    if result.get("email"):
+        lines.append(f"• Email: {result['email']}")
+    if result.get("phone"):
+        lines.append(f"• Phone: {result['phone']}")
+    addr_parts = [result.get("street", ""), result.get("city", ""), result.get("zip", ""), result.get("country", "")]
+    addr = ", ".join(p for p in addr_parts if p)
+    if addr:
+        lines.append(f"• Address: {addr}")
+    return "\n".join(lines)
+
+
+def prompt_for_customer_details() -> str:
+    return (
+        "Please provide the customer details in this format:\n"
+        "\n"
+        "Name (required):\n"
+        "Email (optional):\n"
+        "Phone (optional):\n"
+        "Street (optional):\n"
+        "City (optional):\n"
+        "ZIP code (optional):\n"
+        "Country (optional):\n"
+        "\nExample:\n"
+        "Name: John Doe\n"
+        "Email: john.doe@example.com\n"
+        "Phone: +1 555-123-4567\n"
+        "City: New York\n"
+        "Country: United States"
+    )
+
+def prompt_for_product_details() -> str:
+    return (
+        "Please provide the product details in this format:\n"
+        "\n"
+        "Name (required):\n"
+        "Sales Price (optional):\n"
+        "Cost Price (optional):\n"
+        "Internal Reference (optional):\n"
+        "Description (optional):\n"
+        "\nExample:\n"
+        "Name: Wireless Keyboard\n"
+        "Sales Price: 49.99\n"
+        "Cost Price: 30.00\n"
+        "Internal Reference: KB-001\n"
+        "Description: Compact wireless keyboard with Bluetooth"
+    )

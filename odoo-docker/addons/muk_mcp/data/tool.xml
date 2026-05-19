@@ -238,7 +238,7 @@ else:
 
     <record id="tool_update_customer" model="muk_mcp.tool">
         <field name="name">update_customer</field>
-        <field name="description">Update a customer or contact's details in Odoo. Can update name, email, phone, mobile, street address, city, zip/postal code, and country. Requires the partner ID. At least one field to update must be provided. Country is resolved by name (e.g. 'United States'). Returns updated fields as confirmation.</field>
+        <field name="description">Update a customer or contact's details in Odoo. Can update name, email, phone, street address, city, zip/postal code, and country. Requires the partner ID. At least one field to update must be provided. Country is resolved by name (e.g. 'United States'). Returns updated fields as confirmation.</field>
         <field name="category">write</field>
         <field name="sequence">32</field>
         <field name="code">
@@ -248,7 +248,7 @@ if not partner_id:
 elif not env['res.partner'].search_count([('id', '=', partner_id)]):
     result = {'error': 'Partner %s not found' % partner_id}
 else:
-    allowed = ['name', 'email', 'phone', 'mobile', 'street', 'street2', 'city', 'zip']
+    allowed = ['name', 'email', 'phone', 'street', 'street2', 'city', 'zip']
     vals = {}
     for field in allowed:
         if arguments.get(field) is not None:
@@ -262,7 +262,7 @@ else:
         else:
             vals['country_id'] = country.id
     if not vals and country_name is None:
-        result = {'error': 'Provide at least one field to update: name, email, phone, mobile, street, street2, city, zip, country'}
+        result = {'error': 'Provide at least one field to update: name, email, phone, street, street2, city, zip, country'}
     elif vals or country_name:
         partner = env['res.partner'].browse(partner_id)
         partner.write(vals)
@@ -272,7 +272,6 @@ else:
             'name': partner.name,
             'email': partner.email or '',
             'phone': partner.phone or '',
-            'mobile': partner.mobile or '',
             'street': partner.street or '',
             'city': partner.city or '',
             'zip': partner.zip or '',
@@ -290,7 +289,6 @@ else:
         "name": {"type": "string", "description": "Full name or company name."},
         "email": {"type": "string", "description": "Email address."},
         "phone": {"type": "string", "description": "Phone number."},
-        "mobile": {"type": "string", "description": "Mobile number."},
         "street": {"type": "string", "description": "Street address line 1."},
         "street2": {"type": "string", "description": "Street address line 2."},
         "city": {"type": "string", "description": "City."},
@@ -368,6 +366,146 @@ else:
         }
     },
     "required": ["product_id", "quantity"]
+}</field>
+    </record>
+
+    <record id="tool_create_product" model="muk_mcp.tool">
+        <field name="name">create_product</field>
+        <field name="description">Create a new product in Odoo. Requires a product name. Optionally set sales price, cost price, internal reference (SKU), and sales description. Returns the new product's ID and details.</field>
+        <field name="category">write</field>
+        <field name="sequence">34</field>
+        <field name="code">
+name = arguments.get('name')
+if not name or not str(name).strip():
+    result = {'error': 'Product name is required'}
+else:
+    vals = {'name': str(name).strip()}
+    sales_price = arguments.get('sales_price')
+    cost_price = arguments.get('cost_price')
+    internal_ref = arguments.get('internal_reference')
+    description = arguments.get('description')
+    if sales_price is not None:
+        vals['list_price'] = float(sales_price)
+    if internal_ref:
+        vals['default_code'] = str(internal_ref).strip()
+    if description:
+        vals['description_sale'] = str(description).strip()
+    product = env['product.template'].create(vals)
+    if cost_price is not None:
+        product.sudo().write({'standard_price': float(cost_price)})
+    product.invalidate_recordset()
+    result = {
+        'id': product.id,
+        'name': product.name,
+        'sales_price': product.list_price,
+        'cost_price': product.sudo().standard_price,
+        'internal_reference': product.default_code or '',
+    }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Product name (required)."
+        },
+        "sales_price": {
+            "type": "number",
+            "description": "Sales price (lst_price). Defaults to 0 if omitted."
+        },
+        "cost_price": {
+            "type": "number",
+            "description": "Cost/purchase price (standard_price). Defaults to 0 if omitted."
+        },
+        "internal_reference": {
+            "type": "string",
+            "description": "Internal reference / SKU code."
+        },
+        "description": {
+            "type": "string",
+            "description": "Sales description shown on quotes and invoices."
+        }
+    },
+    "required": ["name"]
+}</field>
+    </record>
+
+    <record id="tool_create_customer" model="muk_mcp.tool">
+        <field name="name">create_customer</field>
+        <field name="description">Create a new customer in Odoo. Requires a customer name. Optionally set email, phone, street address, city, zip/postal code, and country. The record is automatically flagged as a customer. Country is resolved by name (e.g. 'United States'). Returns the new customer's ID and details.</field>
+        <field name="category">write</field>
+        <field name="sequence">35</field>
+        <field name="code">
+name = arguments.get('name')
+if not name or not str(name).strip():
+    result = {'error': 'Customer name is required'}
+else:
+    vals = {'name': str(name).strip()}
+    for field in ['email', 'phone', 'street', 'street2', 'city', 'zip']:
+        if arguments.get(field):
+            vals[field] = str(arguments[field]).strip()
+    country_name = arguments.get('country')
+    country_error = None
+    if country_name:
+        country = env['res.country'].sudo().search([('name', 'ilike', str(country_name).strip())], limit=1)
+        if not country:
+            country_error = 'Country %r not found' % country_name
+        else:
+            vals['country_id'] = country.id
+    if country_error:
+        result = {'error': country_error}
+    else:
+        partner = env['res.partner'].sudo().create(vals)
+        partner.sudo().write({'customer_rank': 1})
+        partner.invalidate_recordset()
+        result = {
+            'id': partner.id,
+            'name': partner.name,
+            'email': partner.email or '',
+            'phone': partner.phone or '',
+            'street': partner.street or '',
+            'city': partner.city or '',
+            'zip': partner.zip or '',
+            'country': partner.country_id.name if partner.country_id else '',
+        }
+        </field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Customer name (required)."
+        },
+        "email": {
+            "type": "string",
+            "description": "Email address."
+        },
+        "phone": {
+            "type": "string",
+            "description": "Phone number."
+        },
+        "street": {
+            "type": "string",
+            "description": "Street address line 1."
+        },
+        "street2": {
+            "type": "string",
+            "description": "Street address line 2."
+        },
+        "city": {
+            "type": "string",
+            "description": "City."
+        },
+        "zip": {
+            "type": "string",
+            "description": "ZIP / postal code."
+        },
+        "country": {
+            "type": "string",
+            "description": "Country name, e.g. 'United States'."
+        }
+    },
+    "required": ["name"]
 }</field>
     </record>
 
