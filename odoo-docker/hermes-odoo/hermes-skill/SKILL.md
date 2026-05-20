@@ -43,35 +43,51 @@ Replace NAME with the product name:
 
 ## Update Product Sales Price
 
-Replace ID with the product template ID and PRICE with the new price:
+By product name:
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_product_price; print(update_product_price(ID, sales_price=PRICE))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_product_price; print(update_product_price(search_name='NAME', sales_price=PRICE))"
+
+By template ID:
+
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_product_price; print(update_product_price(product_id=ID, sales_price=PRICE))"
 
 To update cost price instead (or both):
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_product_price; print(update_product_price(ID, sales_price=PRICE, cost_price=COST))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_product_price; print(update_product_price(search_name='NAME', sales_price=PRICE, cost_price=COST))"
 
 ## Rename Product
 
-Replace ID with the product template ID and NAME with the new name:
+By product name:
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import rename_product; print(rename_product(ID, name='NAME'))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import rename_product; print(rename_product(search_name='OLD NAME', name='NEW NAME'))"
+
+By template ID:
+
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import rename_product; print(rename_product(product_id=ID, name='NEW NAME'))"
 
 To also update internal reference:
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import rename_product; print(rename_product(ID, name='NAME', internal_reference='REF'))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import rename_product; print(rename_product(search_name='OLD NAME', name='NEW NAME', internal_reference='REF'))"
 
 ## Update Customer Details
 
-Replace ID with the partner ID and fill in only the fields you want to change:
+By customer name:
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_customer; print(update_customer(ID, name='NAME', email='EMAIL', phone='PHONE', city='CITY', country='COUNTRY'))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_customer; print(update_customer(search_name='NAME', email='EMAIL', phone='PHONE', city='CITY', country='COUNTRY'))"
+
+By partner ID:
+
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_customer; print(update_customer(customer_id=ID, email='EMAIL', phone='PHONE', city='CITY', country='COUNTRY'))"
 
 ## Update Stock Quantity
 
-Replace ID with the product variant ID (product.product) and QTY with the new on-hand quantity:
+By product name:
 
-    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_stock_quantity; print(update_stock_quantity(ID, QTY))"
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_stock_quantity; print(update_stock_quantity(search_name='NAME', quantity=QTY))"
+
+By variant ID (product.product):
+
+    python3 -c "import sys; sys.path.insert(0,'$HOME/hermes-odoo'); from odoo_tools import update_stock_quantity; print(update_stock_quantity(product_id=ID, quantity=QTY))"
 
 ## Create Product
 

@@ -12,6 +12,74 @@ from odoo_client import call_mcp_tool
 
 
 # ---------------------------------------------------------------------------
+# Internal helpers — name-to-ID resolution
+# ---------------------------------------------------------------------------
+
+
+def _resolve_product_template(search_name: str):
+    """Return (template_id, None) or (None, error_str)."""
+    try:
+        matches = call_mcp_tool("search_read", {
+            "model": "product.template",
+            "domain": json.dumps([["name", "ilike", search_name], ["active", "=", True]]),
+            "fields": ["id", "name"],
+            "limit": 6,
+        })
+    except RuntimeError as exc:
+        return None, f"Could not search products: {exc}"
+    if not matches:
+        return None, f"No product found matching '{search_name}'."
+    if len(matches) > 1:
+        lines = [f"Multiple products match '{search_name}'. Be more specific or use product_id:\n"]
+        for m in matches[:5]:
+            lines.append(f"• ID {m['id']}: {m['name']}")
+        return None, "\n".join(lines)
+    return matches[0]["id"], None
+
+
+def _resolve_product_variant(search_name: str):
+    """Return (variant_id, None) or (None, error_str)."""
+    try:
+        matches = call_mcp_tool("search_read", {
+            "model": "product.product",
+            "domain": json.dumps([["name", "ilike", search_name], ["active", "=", True]]),
+            "fields": ["id", "name"],
+            "limit": 6,
+        })
+    except RuntimeError as exc:
+        return None, f"Could not search products: {exc}"
+    if not matches:
+        return None, f"No product found matching '{search_name}'."
+    if len(matches) > 1:
+        lines = [f"Multiple products match '{search_name}'. Be more specific or use product_id:\n"]
+        for m in matches[:5]:
+            lines.append(f"• ID {m['id']}: {m['name']}")
+        return None, "\n".join(lines)
+    return matches[0]["id"], None
+
+
+def _resolve_partner(search_name: str):
+    """Return (partner_id, None) or (None, error_str)."""
+    try:
+        matches = call_mcp_tool("search_read", {
+            "model": "res.partner",
+            "domain": json.dumps([["name", "ilike", search_name]]),
+            "fields": ["id", "name"],
+            "limit": 6,
+        })
+    except RuntimeError as exc:
+        return None, f"Could not search customers: {exc}"
+    if not matches:
+        return None, f"No customer found matching '{search_name}'."
+    if len(matches) > 1:
+        lines = [f"Multiple customers match '{search_name}'. Be more specific or use customer_id:\n"]
+        for m in matches[:5]:
+            lines.append(f"• ID {m['id']}: {m['name']}")
+        return None, "\n".join(lines)
+    return matches[0]["id"], None
+
+
+# ---------------------------------------------------------------------------
 # Sales Orders
 # ---------------------------------------------------------------------------
 
@@ -93,7 +161,7 @@ def search_customer(name: str) -> str:
         partners = call_mcp_tool("search_read", {
             "model": "res.partner",
             "domain": json.dumps([["name", "ilike", name], ["is_company", "=", True]]),
-            "fields": ["name", "email", "phone", "city", "country_id"],
+            "fields": ["id", "name", "email", "phone", "city", "country_id"],
             "limit": 5,
         })
     except RuntimeError as exc:
@@ -107,7 +175,7 @@ def search_customer(name: str) -> str:
         country = p["country_id"][1] if p.get("country_id") else ""
         city = p.get("city") or ""
         location = ", ".join(filter(None, [city, country]))
-        detail = f"• *{p['name']}*"
+        detail = f"• *{p['name']}* (ID: {p['id']})"
         detail += f" | {p.get('email') or 'No email'}"
         detail += f" | {p.get('phone') or 'No phone'}"
         if location:
@@ -131,7 +199,7 @@ def search_product(name: str) -> str:
         products = call_mcp_tool("search_read", {
             "model": "product.product",
             "domain": json.dumps([["name", "ilike", name], ["active", "=", True]]),
-            "fields": ["name", "default_code", "list_price", "type"],
+            "fields": ["id", "name", "default_code", "list_price", "type", "product_tmpl_id"],
             "limit": 5,
         })
     except RuntimeError as exc:
@@ -143,8 +211,11 @@ def search_product(name: str) -> str:
     lines = [f"*Products matching '{name}':*\n"]
     for p in products:
         ref = f"[{p['default_code']}] " if p.get("default_code") else ""
+        tmpl_id = p["product_tmpl_id"][0] if p.get("product_tmpl_id") else "?"
+        variant_id = p.get("id", "?")
         lines.append(
-            f"• {ref}*{p['name']}* | ${p['list_price']:,.2f} | Type: {p['type']}"
+            f"• {ref}*{p['name']}* | ${p['list_price']:,.2f} | Type: {p['type']}\n"
+            f"  Template ID: {tmpl_id} (rename/price) | Variant ID: {variant_id} (stock)"
         )
     return "\n".join(lines)
 
@@ -212,10 +283,17 @@ def show_product_stock(product_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def update_product_price(product_id: int, sales_price: float = None, cost_price: float = None) -> str:
+def update_product_price(product_id: int = None, sales_price: float = None, cost_price: float = None, search_name: str = None) -> str:
     """Update the sales price and/or cost price of a product template."""
     if sales_price is None and cost_price is None:
         return "Provide at least one of: sales_price or cost_price."
+
+    if product_id is None:
+        if not search_name:
+            return "Provide either product_id or search_name."
+        product_id, err = _resolve_product_template(search_name)
+        if err:
+            return err
 
     args = {"id": product_id}
     if sales_price is not None:
@@ -240,10 +318,17 @@ def update_product_price(product_id: int, sales_price: float = None, cost_price:
     return "\n".join(lines)
 
 
-def rename_product(product_id: int, name: str = None, internal_reference: str = None, description: str = None) -> str:
+def rename_product(product_id: int = None, name: str = None, internal_reference: str = None, description: str = None, search_name: str = None) -> str:
     """Rename a product and/or update its internal reference and sales description."""
     if not name and internal_reference is None and description is None:
         return "Provide at least one of: name, internal_reference, description."
+
+    if product_id is None:
+        if not search_name:
+            return "Provide either product_id or search_name."
+        product_id, err = _resolve_product_template(search_name)
+        if err:
+            return err
 
     args = {"id": product_id}
     if name:
@@ -277,7 +362,7 @@ def rename_product(product_id: int, name: str = None, internal_reference: str = 
 
 
 def update_customer(
-    customer_id: int,
+    customer_id: int = None,
     name: str = None,
     email: str = None,
     phone: str = None,
@@ -287,8 +372,16 @@ def update_customer(
     city: str = None,
     zip_code: str = None,
     country: str = None,
+    search_name: str = None,
 ) -> str:
     """Update a customer or contact's details in Odoo."""
+    if customer_id is None:
+        if not search_name:
+            return "Provide either customer_id or search_name."
+        customer_id, err = _resolve_partner(search_name)
+        if err:
+            return err
+
     args = {"id": customer_id}
     if name is not None:
         args["name"] = name
@@ -339,8 +432,18 @@ def update_customer(
 # ---------------------------------------------------------------------------
 
 
-def update_stock_quantity(product_id: int, quantity: float, location_id: int = None) -> str:
+def update_stock_quantity(product_id: int = None, quantity: float = None, location_id: int = None, search_name: str = None) -> str:
     """Set the on-hand stock quantity for a product variant via inventory adjustment."""
+    if quantity is None:
+        return "Provide quantity."
+
+    if product_id is None:
+        if not search_name:
+            return "Provide either product_id or search_name."
+        product_id, err = _resolve_product_variant(search_name)
+        if err:
+            return err
+
     args = {"product_id": product_id, "quantity": quantity}
     if location_id is not None:
         args["location_id"] = location_id
